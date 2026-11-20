@@ -1,16 +1,22 @@
 const $=id=>document.getElementById(id);
 let busy=false, audioURL, worker;
 function stored(storage,key,value){try{if(value!==undefined)storage.setItem(key,value);return storage.getItem(key)||''}catch{return ''}}
-$('backend').value=stored(localStorage,'lyric-backend');
+const serverReady=fetch('/config.json',{cache:'no-store'}).then(async response=>{
+ if(!response.ok)throw Error('接続先の設定を読み込めませんでした。');
+ const config=await response.json();
+ const url=new URL(config.audioServerUrl);
+ if(url.protocol!=='https:'||url.username||url.password||url.pathname!=='/'||url.search||url.hash)throw Error('接続先の設定が正しくありません。');
+ return url.origin;
+});
+// Observe configuration errors immediately, even before the first submission.
+serverReady.catch(()=>{$('status').textContent='音声取得サーバーの接続設定を確認できませんでした。管理者に連絡してください。'});
 try{sessionStorage.removeItem('lyric-key')}catch{}
 $('lyrics').value=stored(localStorage,'lyric-draft');
-$('settings').open=!$('backend').value;
 function buttons(){$('copy').disabled=busy||!$('lyrics').value.trim();$('save').disabled=$('copy').disabled}
 buttons();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function api(path,options={}){
- const url=new URL($('backend').value.trim());
- if(url.protocol!=='https:'||url.username||url.password)throw Error('サーバーのhttps URLを設定してください。');
+ const url=new URL(await serverReady);
  url.pathname=path;url.search='';url.hash='';
  const response=await fetch(url,{...options,signal:AbortSignal.timeout(120000)});
  if(!response.ok){let error;try{error=(await response.json()).error}catch{}throw Error(error||`サーバー応答: ${response.status}。無料サーバー起動中の場合は少し待って再試行してください。`)}
@@ -31,9 +37,7 @@ function recognize(audio,language){
 }
 $('form').addEventListener('submit',async e=>{
  e.preventDefault();if(busy)return;
- if(!$('backend').value.trim()){$('settings').open=true;$('status').textContent='接続設定にサーバーURLを入力してください。';return}
  busy=true;buttons();$('start').disabled=true;$('lyrics').readOnly=true;$('errorBox').hidden=true;$('progress').hidden=false;$('progress').removeAttribute('value');$('audioBox').hidden=true;
- stored(localStorage,'lyric-backend',$('backend').value.trim());
  try{
   $('status').textContent='音声取得サーバーに接続しています…';
   const {id}=await(await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:$('url').value})})).json();
