@@ -20,6 +20,7 @@ async function api(path,options={}){
  const url=new URL(await serverReady);
  url.pathname=path;url.search='';url.hash='';
  const response=await fetch(url,{...options,signal:AbortSignal.timeout(120000)});
+ if(response.status===401)throw Error('Render側が旧版のためアクセスキーを要求しています。サーバーの更新が必要です。');
  if(!response.ok){let error;try{error=(await response.json()).error}catch{}throw Error(error||`サーバー応答: ${response.status}。無料サーバー起動中の場合は少し待って再試行してください。`)}
  return response;
 }
@@ -59,7 +60,7 @@ $('form').addEventListener('submit',async e=>{
   const pcm=(await offline.startRendering()).getChannelData(0);
   await recognize(pcm);
   setStatus($('lyrics').value.trim()?'完了':'歌声を認識できませんでした。');
- }catch(err){setStatus('処理に失敗しました。');$('errorBox').hidden=false;$('error').textContent=err.message}
+ }catch(err){setStatus('処理に失敗しました。');$('errorBox').hidden=false;$('errorBox').open=true;$('error').textContent=err.message}
  finally{busy=false;buttons();$('start').disabled=false;$('lyrics').readOnly=false;$('progress').hidden=true}
 });
 $('lyrics').addEventListener('input',()=>{stored(localStorage,'lyric-draft',$('lyrics').value);buttons()});
