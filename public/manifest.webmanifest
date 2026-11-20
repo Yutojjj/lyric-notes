@@ -1,7 +1,8 @@
 {
   "id": "/",
-  "name": "Lyric Notes",
-  "short_name": "Lyric Notes",
+  "name": "歌詞文字起こし",
+  "short_name": "歌詞文字起こし",
+  "description": "動画URLからMP3を取得し、歌声を文字起こし・コピーできるアプリです。",
   "lang": "ja",
   "start_url": "/",
   "scope": "/",
