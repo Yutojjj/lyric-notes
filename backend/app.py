@@ -1,5 +1,4 @@
 import os
-import secrets
 import shutil
 import subprocess
 import tempfile
@@ -40,13 +39,8 @@ def canonical(value):
 
 
 @app.before_request
-def authorize():
+def preflight():
     if request.method == 'OPTIONS': return '',204
-    if request.path == '/health': return None
-    password = os.environ.get('APP_PASSWORD','')
-    if not password: return jsonify(error='サーバーのAPP_PASSWORDが未設定です。'),503
-    if not secrets.compare_digest(request.headers.get('Authorization',''), 'Bearer '+password):
-        return jsonify(error='アクセスキーを確認してください。'),401
 
 
 @app.after_request
@@ -54,7 +48,7 @@ def headers(response):
     origin = request.headers.get('Origin')
     if origin and origin == os.environ.get('FRONTEND_ORIGIN'):
         response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     response.headers['Vary'] = 'Origin'
     response.headers['Cache-Control'] = 'no-store'
