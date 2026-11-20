@@ -1,0 +1,70 @@
+const $=id=>document.getElementById(id);
+let busy=false, audioURL, worker;
+function stored(storage,key,value){try{if(value!==undefined)storage.setItem(key,value);return storage.getItem(key)||''}catch{return ''}}
+$('backend').value=stored(localStorage,'lyric-backend');
+$('key').value=stored(sessionStorage,'lyric-key');
+$('lyrics').value=stored(localStorage,'lyric-draft');
+$('settings').open=!$('backend').value||!$('key').value;
+function buttons(){$('copy').disabled=busy||!$('lyrics').value.trim();$('save').disabled=$('copy').disabled}
+buttons();
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function api(path,options={}){
+ const url=new URL($('backend').value.trim());
+ if(url.protocol!=='https:'||url.username||url.password)throw Error('サーバーのhttps URLを設定してください。');
+ url.pathname=path;url.search='';url.hash='';
+ const response=await fetch(url,{...options,signal:AbortSignal.timeout(120000),headers:{Authorization:'Bearer '+$('key').value,...options.headers}});
+ if(!response.ok){let error;try{error=(await response.json()).error}catch{}throw Error(error||`サーバー応答: ${response.status}。無料サーバー起動中の場合は少し待って再試行してください。`)}
+ return response;
+}
+function recognize(audio,language){
+ return new Promise((resolve,reject)=>{
+  worker?.terminate();worker=new Worker('/worker.js',{type:'module'});
+  worker.onerror=e=>{worker.terminate();reject(Error(e.message||'認識処理を起動できませんでした。'))};
+  worker.onmessage=({data})=>{
+   if(data.type==='status')$('status').textContent=data.text;
+   if(data.type==='partial'||data.type==='done'){$('lyrics').value=data.text;stored(localStorage,'lyric-draft',data.text)}
+   if(data.type==='done'){worker.terminate();resolve()}
+   if(data.type==='error'){worker.terminate();reject(Error(data.text))}
+  };
+  worker.postMessage({audio,language},[audio.buffer]);
+ });
+}
+$('form').addEventListener('submit',async e=>{
+ e.preventDefault();if(busy)return;
+ if(!$('backend').value||!$('key').value){$('settings').open=true;$('status').textContent='接続設定にサーバーURLとアクセスキーを入力してください。';return}
+ busy=true;buttons();$('start').disabled=true;$('lyrics').readOnly=true;$('errorBox').hidden=true;$('progress').hidden=false;$('progress').removeAttribute('value');$('audioBox').hidden=true;
+ stored(localStorage,'lyric-backend',$('backend').value.trim());stored(sessionStorage,'lyric-key',$('key').value);
+ try{
+  $('status').textContent='音声取得サーバーに接続しています…';
+  const {id}=await(await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:$('url').value})})).json();
+  while(true){
+   const job=await(await api('/api/jobs/'+id)).json();$('status').textContent=job.message;
+   document.querySelectorAll('.step').forEach(s=>s.classList.toggle('active',s.dataset.step===job.stage));
+   if(job.stage==='error')throw Error(job.message);
+   if(job.stage==='done'){$('song').textContent=job.title;break}
+   await sleep(2000);
+  }
+  const blob=await(await api('/api/jobs/'+id+'/audio')).blob();
+  $('audio').pause();if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(blob);
+  $('audio').src=audioURL;$('download').href=audioURL;$('download').download='audio.mp3';$('audioBox').hidden=false;
+  $('status').textContent='音声を解析しています…';
+  const context=new AudioContext();let decoded;
+  try{decoded=await context.decodeAudioData(await blob.arrayBuffer())}finally{await context.close()}
+  const offline=new OfflineAudioContext(1,Math.ceil(decoded.duration*16000),16000);
+  const source=offline.createBufferSource();source.buffer=decoded;source.connect(offline.destination);source.start();
+  const pcm=(await offline.startRendering()).getChannelData(0);
+  document.querySelectorAll('.step').forEach(s=>s.classList.toggle('active',s.dataset.step==='transcribe'));
+  await recognize(pcm,$('language').value);
+  $('status').textContent=$('lyrics').value.trim()?'完了しました。歌詞を編集・コピーできます。':'歌声を認識できませんでした。MP3を確認してください。';
+ }catch(err){$('status').textContent='処理を完了できませんでした。';$('errorBox').hidden=false;$('error').textContent=err.message}
+ finally{busy=false;buttons();$('start').disabled=false;$('lyrics').readOnly=false;$('progress').hidden=true;document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'))}
+});
+$('lyrics').addEventListener('input',()=>{stored(localStorage,'lyric-draft',$('lyrics').value);buttons()});
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('lyrics').value);$('copyStatus').textContent='コピーしました。'}catch{$('lyrics').select();$('copyStatus').textContent='Ctrl+Cまたは端末のコピー操作でコピーしてください。'}};
+$('save').onclick=()=>{const url=URL.createObjectURL(new Blob(['\ufeff'+$('lyrics').value],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='lyrics.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+let installPrompt;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('install').hidden=false});
+$('install').onclick=async()=>{if(!installPrompt)return;await installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('install').hidden=true};
+window.addEventListener('appinstalled',()=>{$('install').hidden=true});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{$('copyStatus').textContent='PWA登録に失敗しました。再読み込みしてください。'});
+window.addEventListener('offline',()=>{$('status').textContent='オフラインです。歌詞の編集・コピーは引き続き利用できます。'});

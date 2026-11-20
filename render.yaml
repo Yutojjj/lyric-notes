@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lyric-notes-audio
+    runtime: docker
+    plan: free
+    rootDir: backend
+    healthCheckPath: /health
+    envVars:
+      - key: APP_PASSWORD
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
