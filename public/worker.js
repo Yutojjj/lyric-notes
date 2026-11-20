@@ -11,8 +11,7 @@ self.onmessage=async({data})=>{
   const size=30*16000;
   for(let offset=0;offset<data.audio.length;offset+=size){
    self.postMessage({type:'status',text:`歌声を文字起こししています… ${Math.round(offset/data.audio.length*100)}%`});
-   const options={task:'transcribe',return_timestamps:true};
-   if(data.language)options.language=data.language==='ja'?'japanese':'english';
+   const options={task:'transcribe',language:'japanese',return_timestamps:true};
    const output=await transcriber(data.audio.slice(offset,offset+size),options);
    result.push(output.chunks?.map(c=>c.text.trim()).filter(Boolean).join('\n')||output.text.trim());
    self.postMessage({type:'partial',text:result.join('\n')});
