@@ -13,9 +13,8 @@ PC向けローカル版のsmallモデルより認識精度が落ちる場合が�
 3. RenderでNew > Blueprintから同じリポジトリを接続。
    render.yamlはplan: freeを指定しています。有料インスタンスへ変更しない。
    FRONTEND_ORIGINはVercel公開URLのオリジン（末尾の/なし）に設定。
-4. Renderサービスの環境変数APP_PASSWORDは自動生成されます。
-   Render管理画面で値を確認し、PWAの接続設定に貼り付ける。
-   サーバーURLにはRenderのhttps://....onrender.com を設定。
+4. PWAの接続設定のサーバーURLにRenderのhttps://....onrender.com を設定。
+   アクセスキーは不要です。既存のAPP_PASSWORD設定は使われません。
 5. PWAのインストールボタン、またはChrome/Edgeのメニューからインストール。
    iPhoneの場合はSafariの共有 > ホーム画面に追加。
 
@@ -31,7 +30,7 @@ Render/Vercelの課金設定と利用上限を確認してください。
 取得サイトの制限を回避するCookieやプロキシの機能はありません。
 認識モデルとライブラリの初回ダウンロードにはインターネットが必要です。
 PWAの画面と最後に編集した歌詞は端末に保存。MP3取得はオンライン必須。
-アクセスキーはタブ単位のsessionStorageにのみ保存。ソースに入れないでください。
+この版はユーザーの希望により認証なしで公開します。
 
 https://render.com/docs/free
 https://vercel.com/docs
